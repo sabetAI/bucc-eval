@@ -22,6 +22,7 @@ from logging import getLogger
 from .logger import create_logger
 from .dictionary import Dictionary
 
+from ipdb import set_trace
 
 MAIN_DUMP_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'dumped')
 
@@ -119,10 +120,12 @@ def get_idf(europarl, src_lg, tgt_lg, n_idf):
     idf = {src_lg: {}, tgt_lg: {}}
     k = 0
     for lg in idf:
-        start_idx = 200000 + k * n_idf
-        end_idx = 200000 + (k + 1) * n_idf
+        # start_idx = 200000 + k * n_idf
+        # end_idx = 200000 + (k + 1) * n_idf
+        start_idx = 0  
+        end_idx = len(europarl[lg]) 
         for sent in europarl[lg][start_idx:end_idx]:
-            for word in set(sent):
+            for _,word in sent: 
                 idf[lg][word] = idf[lg].get(word, 0) + 1
         n_doc = len(europarl[lg][start_idx:end_idx])
         for word in idf[lg]:

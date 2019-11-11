@@ -12,29 +12,33 @@ import numpy as np
 import torch
 
 from src.utils import bow_idf, get_nn_avg_dist
+from ipdb import set_trace
 
 
-EUROPARL_DIR = 'data/crosslingual/europarl'
+BUCC_DIR = 'data/crosslingual/bucc2018'
 
 
 logger = getLogger()
 
 
-def load_europarl_data(lg1, lg2, n_max=1e10, lower=True):
+def load_europarl_data(lg1, lg2, n_max=1e10, lower=True, full=False):
     """
     Load data parallel sentences
     """
-    if not (os.path.isfile(os.path.join(EUROPARL_DIR, 'europarl-v7.%s-%s.%s' % (lg1, lg2, lg1))) or
-            os.path.isfile(os.path.join(EUROPARL_DIR, 'europarl-v7.%s-%s.%s' % (lg2, lg1, lg1)))):
+    if not (os.path.isfile(os.path.join(BUCC_DIR, 'bucc2018.%s-%s.%s' % (lg1, lg2, lg1))) or
+            os.path.isfile(os.path.join(BUCC_DIR, 'bucc2018.%s-%s.%s' % (lg2, lg1, lg1)))):
         return None
 
-    if os.path.isfile(os.path.join(EUROPARL_DIR, 'europarl-v7.%s-%s.%s' % (lg2, lg1, lg1))):
+    if os.path.isfile(os.path.join(BUCC_DIR, 'bucc2018.%s-%s.%s' % (lg2, lg1, lg1))):
         lg1, lg2 = lg2, lg1
 
     # load sentences
     data = {lg1: [], lg2: []}
     for lg in [lg1, lg2]:
-        fname = os.path.join(EUROPARL_DIR, 'europarl-v7.%s-%s.%s' % (lg1, lg2, lg))
+        if full:
+            fname = os.path.join(BUCC_DIR, 'bucc2018.%s-%s.training.%s' % (lg1, lg2, lg))
+        else:
+            fname = os.path.join(BUCC_DIR, 'bucc2018.%s-%s.%s' % (lg1, lg2, lg))
 
         with io.open(fname, 'r', encoding='utf-8') as f:
             for i, line in enumerate(f):
@@ -44,18 +48,18 @@ def load_europarl_data(lg1, lg2, n_max=1e10, lower=True):
                 data[lg].append(line.rstrip().split())
 
     # get only unique sentences for each language
-    assert len(data[lg1]) == len(data[lg2])
+    if not full:
+        assert len(data[lg1]) == len(data[lg2])
     data[lg1] = np.array(data[lg1])
     data[lg2] = np.array(data[lg2])
-    data[lg1], indices = np.unique(data[lg1], return_index=True)
-    data[lg2] = data[lg2][indices]
-    data[lg2], indices = np.unique(data[lg2], return_index=True)
-    data[lg1] = data[lg1][indices]
+    data[lg1] = list(zip(range(1,len(data[lg1])+1), data[lg1]))
+    data[lg2] = list(zip(range(1,len(data[lg2])+1), data[lg2]))
 
     # shuffle sentences
     rng = np.random.RandomState(1234)
     perm = rng.permutation(len(data[lg1]))
     data[lg1] = data[lg1][perm]
+    perm = rng.permutation(len(data[lg2]))
     data[lg2] = data[lg2][perm]
 
     logger.info("Loaded europarl %s-%s (%i sentences)." % (lg1, lg2, len(data[lg1])))

@@ -17,6 +17,8 @@ from . import load_europarl_data, get_sent_translation_accuracy
 from ..dico_builder import get_candidates, build_dictionary
 from src.utils import get_idf
 
+from ipdb import set_trace
+
 
 logger = getLogger()
 
@@ -130,14 +132,14 @@ class Evaluator(object):
         lg2 = self.tgt_dico.lang
 
         # parameters
-        n_keys = 200000
+        n_keys = 9076
         n_queries = 2000
         n_idf = 300000
 
         # load europarl data
         if not hasattr(self, 'europarl_data'):
             self.europarl_data = load_europarl_data(
-                lg1, lg2, n_max=(n_keys + 2 * n_idf)
+                lg1, lg2, n_max=(n_keys + 2 * n_idf), full=True
             )
 
         # if no Europarl data for this language pair
@@ -145,11 +147,12 @@ class Evaluator(object):
             return
 
         # mapped word embeddings
+        set_trace()
         src_emb = self.mapping(self.src_emb.weight).data
         tgt_emb = self.tgt_emb.weight.data
 
         # get idf weights
-        idf = get_idf(self.europarl_data, lg1, lg2, n_idf=n_idf)
+        idf = get_idf(self.europarl_data_train, lg1, lg2, n_idf=n_idf)
 
         for method in ['nn', 'csls_knn_10']:
 
