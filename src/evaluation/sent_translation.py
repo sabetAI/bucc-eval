@@ -12,7 +12,9 @@ import numpy as np
 import torch
 
 from src.utils import bow_idf, get_nn_avg_dist
+from collections import namedtuple
 from ipdb import set_trace
+from tqdm import tqdm
 
 
 BUCC_DIR = 'data/crosslingual/bucc2018'
@@ -21,22 +23,23 @@ BUCC_DIR = 'data/crosslingual/bucc2018'
 logger = getLogger()
 
 
-def load_europarl_data(lg1, lg2, n_max=1e10, lower=True, full=False):
+def load_bucc_data(lg1, lg2, split, n_max=1e10, lower=True, full=False):
     """
     Load data parallel sentences
     """
-    if not (os.path.isfile(os.path.join(BUCC_DIR, 'bucc2018.%s-%s.%s' % (lg1, lg2, lg1))) or
-            os.path.isfile(os.path.join(BUCC_DIR, 'bucc2018.%s-%s.%s' % (lg2, lg1, lg1)))):
-        return None
+    # if not (os.path.isfile(os.path.join(BUCC_DIR, 'bucc2018.%s-%s.%s' % (lg1, lg2, lg1))) or
+    #         os.path.isfile(os.path.join(BUCC_DIR, 'bucc2018.%s-%s.%s' % (lg2, lg1, lg1)))):
+    #     return None
 
-    if os.path.isfile(os.path.join(BUCC_DIR, 'bucc2018.%s-%s.%s' % (lg2, lg1, lg1))):
-        lg1, lg2 = lg2, lg1
+    # if os.path.isfile(os.path.join(BUCC_DIR, 'bucc2018.%s-%s.%s' % (lg2, lg1, lg1))):
+    #     lg1, lg2 = lg2, lg1
 
     # load sentences
     data = {lg1: [], lg2: []}
     for lg in [lg1, lg2]:
         if full:
-            fname = os.path.join(BUCC_DIR, 'bucc2018.%s-%s.training.%s' % (lg1, lg2, lg))
+            fname = os.path.join(BUCC_DIR, 'bucc2018.%s-%s.%s.%s' % (lg1, lg2,
+                                                                     split, lg))
         else:
             fname = os.path.join(BUCC_DIR, 'bucc2018.%s-%s.%s' % (lg1, lg2, lg))
 
@@ -52,22 +55,39 @@ def load_europarl_data(lg1, lg2, n_max=1e10, lower=True, full=False):
         assert len(data[lg1]) == len(data[lg2])
     data[lg1] = np.array(data[lg1])
     data[lg2] = np.array(data[lg2])
-    data[lg1] = list(zip(range(1,len(data[lg1])+1), data[lg1]))
-    data[lg2] = list(zip(range(1,len(data[lg2])+1), data[lg2]))
+    data[lg1] = list(zip(range(len(data[lg1])+1), data[lg1]))
+    data[lg2] = list(zip(range(len(data[lg2])+1), data[lg2]))
 
-    # shuffle sentences
-    rng = np.random.RandomState(1234)
-    perm = rng.permutation(len(data[lg1]))
-    data[lg1] = data[lg1][perm]
-    perm = rng.permutation(len(data[lg2]))
-    data[lg2] = data[lg2][perm]
-
-    logger.info("Loaded europarl %s-%s (%i sentences)." % (lg1, lg2, len(data[lg1])))
+    logger.info("Loaded bucc2018 %s.%s-%s (%i sentences)." % (split, lg1, lg2, len(data[lg1])))
     return data
 
+def load_bucc_labels(lg1, lg2, split, n_max=1e10, lower=True, full=False):
+    """
+    Load data parallel sentences
+    """
+    if split == 'test':
+        return None
+    if not os.path.isfile(os.path.join(BUCC_DIR, 'bucc2018.%s-%s.%s.gold' % (lg1, lg2, split))):
+        return None
 
-def get_sent_translation_accuracy(data, lg1, word2id1, emb1, lg2, word2id2, emb2,
-                                  n_keys, n_queries, method, idf):
+    # load sentences
+    labels = []
+    fname = os.path.join(BUCC_DIR, 'bucc2018.%s-%s.%s.gold' % (lg1, lg2, split))
+
+    with io.open(fname, 'r') as f:
+        for ids in f:
+            ids = ids.split('\t')
+            labels.append([int(ids[0]), int(ids[1])])
+
+    # shuffle sentences
+    labels = np.array(labels)
+
+    logger.info("Loaded bucc %s labels %s-%s (%i sentences)." % (split, lg1, lg2, len(labels)))
+    return labels
+
+
+def get_sent_translation_accuracy(data, labels, lg1, word2id1, emb1, lg2, word2id2, emb2,
+                                  method, idf, test):
 
     """
     Given parallel sentences from Europarl, evaluate the
@@ -83,14 +103,15 @@ def get_sent_translation_accuracy(data, lg1, word2id1, emb1, lg2, word2id2, emb2
     lg_query = lg1
 
     # get n_keys pairs of sentences
-    keys = data[lg_keys][:n_keys]
-    keys = bow_idf(keys, word_vect[lg_keys], idf_dict=idf[lg_keys])
+    src_keys = torch.LongTensor(labels[:,0]) if labels else torch.arange(len(data[lg1]))
+    tgt_keys = torch.LongTensor(labels[:,1]) if labels else torch.arange(len(data[lg2]))
+    keys = data[lg_keys]
+    key_ids, keys = bow_idf(keys, word_vect[lg_keys], idf_dict=idf[lg_keys])
 
     # get n_queries query pairs from these n_keys pairs
     rng = np.random.RandomState(1234)
-    idx_query = rng.choice(range(n_keys), size=n_queries, replace=False)
-    queries = data[lg_query][idx_query]
-    queries = bow_idf(queries, word_vect[lg_query], idf_dict=idf[lg_query])
+    queries = [data[lg_query][i.item()] for i in src_keys]
+    query_ids, queries = bow_idf(queries, word_vect[lg_query], idf_dict=idf[lg_query])
 
     # normalize embeddings
     queries = torch.from_numpy(queries).float()
@@ -98,18 +119,10 @@ def get_sent_translation_accuracy(data, lg1, word2id1, emb1, lg2, word2id2, emb2
     keys = torch.from_numpy(keys).float()
     keys = keys / keys.norm(2, 1, keepdim=True).expand_as(keys)
 
+
     # nearest neighbors
     if method == 'nn':
-        scores = keys.mm(queries.transpose(0, 1)).transpose(0, 1)
-        scores = scores.cpu()
-
-    # inverted softmax
-    elif method.startswith('invsm_beta_'):
-        beta = float(method[len('invsm_beta_'):])
-        scores = keys.mm(queries.transpose(0, 1)).transpose(0, 1)
-        scores.mul_(beta).exp_()
-        scores.div_(scores.sum(0, keepdim=True).expand_as(scores))
-        scores = scores.cpu()
+        top1 = top1_scores(queries, keys, 3000)
 
     # contextual dissimilarity measure
     elif method.startswith('csls_knn_'):
@@ -130,11 +143,25 @@ def get_sent_translation_accuracy(data, lg1, word2id1, emb1, lg2, word2id2, emb2
 
     results = []
     top_matches = scores.topk(10, 1, True)[1]
-    for k in [1, 5, 10]:
-        top_k_matches = (top_matches[:, :k] == torch.from_numpy(idx_query)[:, None]).sum(1)
-        precision_at_k = 100 * top_k_matches.float().numpy().mean()
-        logger.info("%i queries (%s) - %s - Precision at k = %i: %f" %
-                    (len(top_k_matches), lg_query.upper(), method, k, precision_at_k))
-        results.append(('sent-precision_at_%i' % k, precision_at_k))
+    predictions = top_matches[:,0]
 
-    return results
+    if not test:
+        for k in [1, 5, 10]:
+            top_k_matches = (top_matches[:, :k] == tgt_keys[:, None]).sum(1)
+            precision_at_k = 100 * top_k_matches.float().numpy().mean()
+            logger.info("%i queries (%s) - %s - Precision at k = %i: %f" %
+                        (len(top_k_matches), lg_query.upper(), method, k, precision_at_k))
+            results.append(('sent-precision_at_%i' % k, precision_at_k))
+
+    return predictions, results
+
+def top1_scores(queries, keys, batch_size):
+    all_scores = []
+    all_idx = []
+    for q in tqdm(queries.split(batch_size)):
+        scores, idx = keys.mm(q.t()).t().topk(1)
+        all_scores.append(scores)
+        all_idx.append(idx)
+    all_scores = torch.cat(all_scores)
+    all_idx = torch.cat(all_idx)
+    return (all_scores, all_idx)

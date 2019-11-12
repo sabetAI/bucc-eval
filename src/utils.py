@@ -101,16 +101,18 @@ def bow_idf(sentences, word_vec, idf_dict=None):
     Get sentence representations using weigthed IDF bag-of-words.
     """
     embeddings = []
-    for sent in sentences:
-        sent = set(sent)
+    ids = []
+    for i, sent in sentences:
+        #sent = set(sent)
         list_words = [w for w in sent if w in word_vec and w in idf_dict]
         if len(list_words) > 0:
             sentvec = [word_vec[w] * idf_dict[w] for w in list_words]
             sentvec = sentvec / np.sum([idf_dict[w] for w in list_words])
         else:
             sentvec = [word_vec[list(word_vec.keys())[0]]]
+        ids.append(i)
         embeddings.append(np.sum(sentvec, axis=0))
-    return np.vstack(embeddings)
+    return ids, np.vstack(embeddings)
 
 
 def get_idf(europarl, src_lg, tgt_lg, n_idf):
@@ -124,13 +126,12 @@ def get_idf(europarl, src_lg, tgt_lg, n_idf):
         # end_idx = 200000 + (k + 1) * n_idf
         start_idx = 0  
         end_idx = len(europarl[lg]) 
-        for sent in europarl[lg][start_idx:end_idx]:
-            for _,word in sent: 
+        for pair in europarl[lg][start_idx:end_idx]:
+            for word in pair[1]:
                 idf[lg][word] = idf[lg].get(word, 0) + 1
         n_doc = len(europarl[lg][start_idx:end_idx])
         for word in idf[lg]:
             idf[lg][word] = max(1, np.log10(n_doc / (idf[lg][word])))
-        k += 1
     return idf
 
 

@@ -33,6 +33,7 @@ parser.add_argument("--tgt_emb", type=str, default="", help="Reload target embed
 parser.add_argument("--max_vocab", type=int, default=200000, help="Maximum vocabulary size (-1 to disable)")
 parser.add_argument("--emb_dim", type=int, default=300, help="Embedding dimension")
 parser.add_argument("--normalize_embeddings", type=str, default="", help="Normalize embeddings before training")
+parser.add_argument("--split", type=str, default="sample", help="Training/test/sample split")
 
 
 # parse parameters
