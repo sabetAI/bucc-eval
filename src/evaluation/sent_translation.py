@@ -10,6 +10,7 @@ import io
 from logging import getLogger
 import numpy as np
 import torch
+import pickle
 
 from src.utils import bow_idf, get_nn_avg_dist
 from collections import namedtuple
@@ -87,7 +88,7 @@ def load_bucc_labels(lg1, lg2, split, n_max=1e10, lower=True, full=False):
 
 
 def get_sent_translation_accuracy(data, labels, lg1, word2id1, emb1, lg2, word2id2, emb2,
-                                  method, idf, test):
+                                  method, idf, test, device=2):
 
     """
     Given parallel sentences from Europarl, evaluate the
@@ -103,8 +104,8 @@ def get_sent_translation_accuracy(data, labels, lg1, word2id1, emb1, lg2, word2i
     lg_query = lg1
 
     # get n_keys pairs of sentences
-    src_keys = torch.LongTensor(labels[:,0]) if labels else torch.arange(len(data[lg1]))
-    tgt_keys = torch.LongTensor(labels[:,1]) if labels else torch.arange(len(data[lg2]))
+    src_keys = torch.arange(len(data[lg1]))
+    tgt_keys = torch.arange(len(data[lg2]))
     keys = data[lg_keys]
     key_ids, keys = bow_idf(keys, word_vect[lg_keys], idf_dict=idf[lg_keys])
 
@@ -118,11 +119,13 @@ def get_sent_translation_accuracy(data, labels, lg1, word2id1, emb1, lg2, word2i
     queries = queries / queries.norm(2, 1, keepdim=True).expand_as(queries)
     keys = torch.from_numpy(keys).float()
     keys = keys / keys.norm(2, 1, keepdim=True).expand_as(keys)
-
+    keys = keys.to(device)
 
     # nearest neighbors
     if method == 'nn':
-        top1 = top1_scores(queries, keys, 3000)
+        top1 = top2_scores(queries, keys, 1500, device=device)
+        pickle.dump(top1, open('fr-en.sample.scores', 'wb'))
+        set_trace()
 
     # contextual dissimilarity measure
     elif method.startswith('csls_knn_'):
@@ -155,13 +158,13 @@ def get_sent_translation_accuracy(data, labels, lg1, word2id1, emb1, lg2, word2i
 
     return predictions, results
 
-def top1_scores(queries, keys, batch_size):
+def top2_scores(queries, keys, batch_size, device):
     all_scores = []
     all_idx = []
     for q in tqdm(queries.split(batch_size)):
-        scores, idx = keys.mm(q.t()).t().topk(1)
-        all_scores.append(scores)
-        all_idx.append(idx)
+        scores, idx = keys.mm(q.to(device).t()).t().topk(2)
+        all_scores.append(scores.cpu())
+        all_idx.append(idx.cpu())
     all_scores = torch.cat(all_scores)
     all_idx = torch.cat(all_idx)
     return (all_scores, all_idx)

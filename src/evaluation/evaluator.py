@@ -153,7 +153,6 @@ class Evaluator(object):
 
         # get idf weights
         idf = get_idf(self.europarl_data, lg1, lg2, n_idf=n_idf)
-        set_trace()
         for method in ['nn', 'csls_knn_10']:
             # source <- target sentence translation
             pred_src, results = get_sent_translation_accuracy(
@@ -177,7 +176,6 @@ class Evaluator(object):
             if self.params.split == 'test':
                 self.to_file(pred_src, lg1, lg2)
                 self.to_file(pred_tgt, lg2, lg1)
-            set_trace()
 
     def dist_mean_cosine(self, to_log):
         """
