@@ -144,15 +144,15 @@ def get_nn_avg_dist(emb, query, knn):
     if FAISS_AVAILABLE:
         emb = emb.cpu().numpy()
         query = query.cpu().numpy()
-        if hasattr(faiss, 'StandardGpuResources'):
-            # gpu mode
-            res = faiss.StandardGpuResources()
-            config = faiss.GpuIndexFlatConfig()
-            config.device = 0
-            index = faiss.GpuIndexFlatIP(res, emb.shape[1], config)
-        else:
+        # if hasattr(faiss, 'StandardGpuResources'):
+        #     # gpu mode
+        #     res = faiss.StandardGpuResources()
+        #     config = faiss.GpuIndexFlatConfig()
+        #     config.device = 0
+        #     index = faiss.GpuIndexFlatIP(res, emb.shape[1], config)
+        # else:
             # cpu mode
-            index = faiss.IndexFlatIP(emb.shape[1])
+        index = faiss.IndexFlatIP(emb.shape[1])
         index.add(emb)
         distances, _ = index.search(query, knn)
         return distances.mean(1)
@@ -312,7 +312,7 @@ def read_txt_embeddings(params, source, full_vocab):
     dico = Dictionary(id2word, word2id, lang)
     embeddings = np.concatenate(vectors, 0)
     embeddings = torch.from_numpy(embeddings).float()
-    embeddings = embeddings.cuda() if (params.cuda and not full_vocab) else embeddings
+    embeddings = embeddings.to(params.device) if (params.cuda and not full_vocab) else embeddings
 
     assert embeddings.size() == (len(dico), params.emb_dim)
     return dico, embeddings

@@ -153,14 +153,15 @@ class Evaluator(object):
 
         # get idf weights
         idf = get_idf(self.europarl_data, lg1, lg2, n_idf=n_idf)
-        for method in ['nn', 'csls_knn_10']:
+        for method in ['csls_knn_10']:
             # source <- target sentence translation
             pred_src, results = get_sent_translation_accuracy(
                 self.europarl_data,
                 self.gold, # swap cols
                 self.src_dico.lang, self.src_dico.word2id, src_emb,
                 self.tgt_dico.lang, self.tgt_dico.word2id, tgt_emb,
-                method=method, idf=idf, test=(self.params.split=='test')
+                method=method, idf=idf, test=(self.params.split=='test'),
+                device=self.params.device
             )
             to_log.update([('tgt_to_src_%s-%s' % (k, method), v) for k, v in results])
 
@@ -170,7 +171,8 @@ class Evaluator(object):
                 self.gold[:, [1,0]] if self.gold else None,
                 self.tgt_dico.lang, self.tgt_dico.word2id, tgt_emb,
                 self.src_dico.lang, self.src_dico.word2id, src_emb,
-                method=method, idf=idf, test=(self.params.split=='test')
+                method=method, idf=idf, test=(self.params.split=='test'),
+                device=self.params.device
             )
             to_log.update([('src_to_tgt_%s-%s' % (k, method), v) for k, v in results])
             if self.params.split == 'test':

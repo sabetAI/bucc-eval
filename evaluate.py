@@ -23,6 +23,7 @@ parser.add_argument("--exp_path", type=str, default="", help="Where to store exp
 parser.add_argument("--exp_name", type=str, default="debug", help="Experiment name")
 parser.add_argument("--exp_id", type=str, default="", help="Experiment ID")
 parser.add_argument("--cuda", type=bool_flag, default=True, help="Run on GPU")
+parser.add_argument("--device", type=int, default=True, help="GPU to run on")
 # data
 parser.add_argument("--src_lang", type=str, default="", help="Source language")
 parser.add_argument("--tgt_lang", type=str, default="", help="Target language")

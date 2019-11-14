@@ -123,9 +123,8 @@ def get_sent_translation_accuracy(data, labels, lg1, word2id1, emb1, lg2, word2i
 
     # nearest neighbors
     if method == 'nn':
-        top1 = top2_scores(queries, keys, 1500, device=device)
-        pickle.dump(top1, open('fr-en.sample.scores', 'wb'))
-        set_trace()
+        top2 = top2_scores(queries, keys, 1500, device=device)
+        pickle.dump(top2, open('fr-en.sample.scores', 'wb'))
 
     # contextual dissimilarity measure
     elif method.startswith('csls_knn_'):
@@ -136,13 +135,18 @@ def get_sent_translation_accuracy(data, labels, lg1, word2id1, emb1, lg2, word2i
         knn = method[len('csls_knn_'):]
         assert knn.isdigit()
         knn = int(knn)
-        average_dist_keys = torch.from_numpy(get_nn_avg_dist(queries, keys, knn))
-        average_dist_queries = torch.from_numpy(get_nn_avg_dist(keys, queries, knn))
+        average_dist_keys = torch.from_numpy(get_nn_avg_dist(queries, keys,
+                                                             knn)).to(device)
+        average_dist_queries = torch.from_numpy(get_nn_avg_dist(keys, queries,
+                                                                knn)).to(device)
         # scores
-        scores = keys.mm(queries.transpose(0, 1)).transpose(0, 1)
-        scores.mul_(2)
-        scores.sub_(average_dist_queries[:, None].float() + average_dist_keys[None, :].float())
-        scores = scores.cpu()
+        top2 = top2_scores_csls(queries, keys, 1000, average_dist_keys,
+                         average_dist_queries, device=device)
+        pickle.dump(top2, open('fr-en.sample.scores', 'wb'))
+        # scores = keys.mm(queries.transpose(0, 1)).transpose(0, 1)
+        # scores.mul_(2)
+        # scores.sub_(average_dist_queries[:, None].float() + average_dist_keys[None, :].float())
+        # scores = scores.cpu()
 
     results = []
     top_matches = scores.topk(10, 1, True)[1]
@@ -163,6 +167,22 @@ def top2_scores(queries, keys, batch_size, device):
     all_idx = []
     for q in tqdm(queries.split(batch_size)):
         scores, idx = keys.mm(q.to(device).t()).t().topk(2)
+        all_scores.append(scores.cpu())
+        all_idx.append(idx.cpu())
+    all_scores = torch.cat(all_scores)
+    all_idx = torch.cat(all_idx)
+    return (all_scores, all_idx)
+
+def top2_scores_csls(queries, keys, batch_size, avg_dist_keys,
+                     avg_dist_queries, device):
+    all_scores = []
+    all_idx = []
+    for q, adq in tqdm(zip(queries.split(batch_size),
+                      avg_dist_queries.split(batch_size))):
+        scores = keys.mm(q.to(device).t()).t().mul(2)
+        scores.sub_(adq[:,None].float())
+        scores.sub_(avg_dist_keys[None,:].float())
+        scores, idx = scores.topk(2)
         all_scores.append(scores.cpu())
         all_idx.append(idx.cpu())
     all_scores = torch.cat(all_scores)

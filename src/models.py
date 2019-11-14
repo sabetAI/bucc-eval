@@ -67,12 +67,12 @@ def build_model(params, with_dis):
 
     # cuda
     if params.cuda:
-        src_emb.cuda()
+        src_emb.to(params.device)
         if params.tgt_lang:
-            tgt_emb.cuda()
-        mapping.cuda()
+            tgt_emb.cuda(params.device)
+        mapping.to(params.device)
         if with_dis:
-            discriminator.cuda()
+            discriminator.cuda(params.device)
 
     # normalize embeddings
     params.src_mean = normalize_embeddings(src_emb.weight.data, params.normalize_embeddings)
